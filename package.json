@@ -1,0 +1,30 @@
+{
+  "name": "apple-rag-docs-free",
+  "version": "0.1.0",
+  "description": "Self-hostable MCP server for Apple developer docs and WWDC transcripts.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "module": "src/server.ts",
+  "scripts": {
+    "dev": "bun run --hot src/server.ts",
+    "start": "bun run src/server.ts",
+    "build": "bun build src/server.ts --outdir dist --target bun --minify",
+    "typecheck": "bunx tsc --noEmit",
+    "lint": "bunx @biomejs/biome check src scripts test",
+    "lint:fix": "bunx @biomejs/biome check --write src scripts test",
+    "test": "bun test",
+    "migrate": "bun run scripts/migrate.ts",
+    "collect": "bun run scripts/collect.ts",
+    "seed": "bun run scripts/seed-one.ts"
+  },
+  "dependencies": {
+    "hono": "^4.6.14",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@types/bun": "^1.1.14",
+    "typescript": "^5.6.3"
+  }
+}
