@@ -1,0 +1,37 @@
+# deps
+node_modules/
+bun.lockb
+.pnp.*
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# build
+dist/
+build/
+*.tsbuildinfo
+.cache/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# runtime / local data
+.mcp_data/
+logs/
+*.log
+
+# research artifacts (not for public repo)
+upstream/
+observed/
+OBSERVED.md
+PLAN.md
+
+# test / coverage
+coverage/
+.nyc_output/
