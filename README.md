@@ -6,7 +6,9 @@ Hybrid search (pgvector semantic + Postgres keyword) with AI reranking over Appl
 
 ## Credit
 
-This project is a reverse-engineered, self-hosted re-implementation of [BingoWon/apple-rag-mcp](https://github.com/BingoWon/apple-rag-mcp). All credit for the original design, content-processing heuristics, and chunking strategy goes to BingoWon. This repo exists because: reverse engineering his MCP server, cause why not. If you want the hosted version, go use his at [apple-rag.com](https://apple-rag.com).
+This project is a reverse-engineered, self-hosted re-implementation of [BingoWon/apple-rag-mcp](https://github.com/BingoWon/apple-rag-mcp).
+
+I reversed engineered his MCP server, cause why not. If you want to pay him for his hosted version, go use his at [apple-rag.com](https://apple-rag.com).
 
 What we changed:
 - Runtime: Bun + Hono (upstream runs Cloudflare Workers).
