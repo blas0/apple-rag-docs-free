@@ -11,8 +11,8 @@
     "start": "bun run src/server.ts",
     "build": "bun build src/server.ts --outdir dist --target bun --minify",
     "typecheck": "bunx tsc --noEmit",
-    "lint": "bunx @biomejs/biome check src",
-    "lint:fix": "bunx @biomejs/biome check --write src",
+    "lint": "bunx @biomejs/biome check src scripts",
+    "lint:fix": "bunx @biomejs/biome check --write src scripts",
     "test": "bun test",
     "migrate": "bun run scripts/migrate.ts",
     "collect": "bun run scripts/collect.ts"
