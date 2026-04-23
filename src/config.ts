@@ -1,5 +1,11 @@
 /**
  * Environment parsing. Fails loud on startup if required vars are missing.
+ *
+ * Two supported deploy shapes:
+ *   [1] Local-only: Ollama for embeddings at localhost, reranker disabled,
+ *       no API key needed. Default.
+ *   [2] Hosted: DeepInfra (or any OpenAI-compatible provider) for embeddings
+ *       and reranker. Requires DEEPINFRA_API_KEY and non-zero RERANKER_ENABLED.
  */
 
 export interface Config {
@@ -12,8 +18,10 @@ export interface Config {
 	readonly embedding: {
 		readonly baseUrl: string;
 		readonly model: string;
+		readonly dim: number;
 	};
 	readonly reranker: {
+		readonly enabled: boolean;
 		readonly baseUrl: string;
 		readonly primary: string;
 		readonly fallback: string;
@@ -24,8 +32,10 @@ const DEFAULTS = {
 	port: 8787,
 	logLevel: "info" as const,
 	collectorBatchSize: 10,
-	deepInfraBase: "https://api.deepinfra.com",
-	embeddingModel: "Qwen/Qwen3-Embedding-4B",
+	embeddingBaseUrl: "http://127.0.0.1:11434/v1",
+	embeddingModel: "nomic-embed-text",
+	embeddingDim: 768,
+	rerankerBaseUrl: "https://api.deepinfra.com",
 	rerankerPrimary: "Qwen/Qwen3-Reranker-8B",
 	rerankerFallback: "Qwen/Qwen3-Reranker-4B",
 };
@@ -48,6 +58,14 @@ function parseIntOr(name: string, fallback: number): number {
 	return n;
 }
 
+function parseBool(raw: string | undefined, fallback: boolean): boolean {
+	if (raw === undefined) return fallback;
+	const v = raw.trim().toLowerCase();
+	if (["1", "true", "yes", "on"].includes(v)) return true;
+	if (["0", "false", "no", "off", ""].includes(v)) return false;
+	throw new Error(`Expected boolean, got: ${raw}`);
+}
+
 function parseLogLevel(raw: string | undefined): Config["logLevel"] {
 	const v = (raw || DEFAULTS.logLevel).toLowerCase();
 	if (v === "debug" || v === "info" || v === "warn" || v === "error") return v;
@@ -55,19 +73,30 @@ function parseLogLevel(raw: string | undefined): Config["logLevel"] {
 }
 
 export function loadConfig(): Config {
+	const rerankerEnabled = parseBool(process.env.RERANKER_ENABLED, false);
+
+	// DeepInfra key is only required when a hosted reranker is enabled AND its
+	// base URL points at a DeepInfra endpoint. Local Ollama flows never need it.
+	const rerankerBaseUrl = process.env.RERANKER_BASE_URL?.trim() || DEFAULTS.rerankerBaseUrl;
+	const needsKey = rerankerEnabled && rerankerBaseUrl.includes("deepinfra.com");
+
 	return {
 		port: parseIntOr("PORT", DEFAULTS.port),
 		logLevel: parseLogLevel(process.env.LOG_LEVEL),
 		databaseUrl: requireEnv("DATABASE_URL"),
-		deepInfraApiKey: requireEnv("DEEPINFRA_API_KEY"),
+		deepInfraApiKey: needsKey
+			? requireEnv("DEEPINFRA_API_KEY")
+			: (process.env.DEEPINFRA_API_KEY?.trim() ?? ""),
 		collectorBatchSize: parseIntOr("COLLECTOR_BATCH_SIZE", DEFAULTS.collectorBatchSize),
 		collectorAdminToken: process.env.COLLECTOR_ADMIN_TOKEN?.trim() || null,
 		embedding: {
-			baseUrl: process.env.EMBEDDING_BASE_URL?.trim() || DEFAULTS.deepInfraBase,
+			baseUrl: process.env.EMBEDDING_BASE_URL?.trim() || DEFAULTS.embeddingBaseUrl,
 			model: process.env.EMBEDDING_MODEL?.trim() || DEFAULTS.embeddingModel,
+			dim: parseIntOr("EMBEDDING_DIM", DEFAULTS.embeddingDim),
 		},
 		reranker: {
-			baseUrl: process.env.RERANKER_BASE_URL?.trim() || DEFAULTS.deepInfraBase,
+			enabled: rerankerEnabled,
+			baseUrl: rerankerBaseUrl,
 			primary: process.env.RERANKER_MODEL_PRIMARY?.trim() || DEFAULTS.rerankerPrimary,
 			fallback: process.env.RERANKER_MODEL_FALLBACK?.trim() || DEFAULTS.rerankerFallback,
 		},

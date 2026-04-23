@@ -26,7 +26,9 @@ CREATE INDEX IF NOT EXISTS pages_apple_collect_count
 
 -- ============================================================
 -- chunks: vector-indexed shards of pages.content.
--- embedding dim 2560 matches Qwen3-Embedding-4B.
+-- embedding dim 768 matches nomic-embed-text (local-first default).
+-- To switch models: change this dimension, set EMBEDDING_DIM in .env,
+-- and apply against a fresh database.
 -- halfvec halves storage vs float4 with negligible quality loss.
 -- ============================================================
 CREATE TABLE IF NOT EXISTS chunks (
@@ -34,7 +36,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     url             text NOT NULL REFERENCES pages(url) ON DELETE CASCADE,
     title           text,
     content         text NOT NULL,
-    embedding       halfvec(2560),
+    embedding       halfvec(768),
     chunk_index     integer NOT NULL,
     total_chunks    integer NOT NULL,
     created_at      timestamptz NOT NULL DEFAULT now()
