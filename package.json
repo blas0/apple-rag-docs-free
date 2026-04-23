@@ -15,7 +15,8 @@
     "lint:fix": "bunx @biomejs/biome check --write src scripts",
     "test": "bun test",
     "migrate": "bun run scripts/migrate.ts",
-    "collect": "bun run scripts/collect.ts"
+    "collect": "bun run scripts/collect.ts",
+    "seed": "bun run scripts/seed-one.ts"
   },
   "dependencies": {
     "hono": "^4.6.14",
