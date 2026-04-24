@@ -13,6 +13,7 @@ export interface Config {
 	readonly logLevel: "debug" | "info" | "warn" | "error";
 	readonly databaseUrl: string;
 	readonly deepInfraApiKey: string;
+	readonly mcpAuthToken: string | null;
 	readonly collectorBatchSize: number;
 	readonly collectorAdminToken: string | null;
 	readonly embedding: {
@@ -87,6 +88,7 @@ export function loadConfig(): Config {
 		deepInfraApiKey: needsKey
 			? requireEnv("DEEPINFRA_API_KEY")
 			: (process.env.DEEPINFRA_API_KEY?.trim() ?? ""),
+		mcpAuthToken: process.env.MCP_AUTH_TOKEN?.trim() || null,
 		collectorBatchSize: parseIntOr("COLLECTOR_BATCH_SIZE", DEFAULTS.collectorBatchSize),
 		collectorAdminToken: process.env.COLLECTOR_ADMIN_TOKEN?.trim() || null,
 		embedding: {
