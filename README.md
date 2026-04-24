@@ -2,170 +2,102 @@
 
 [![CI](https://github.com/blas0/apple-rag-docs-free/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/blas0/apple-rag-docs-free/actions/workflows/ci.yml)
 
-**A free, self-hostable MCP server for Apple developer documentation and WWDC transcripts.**
+A self-hosted MCP server for searching Apple developer documentation and
+WWDC video transcripts. Bring your own Postgres + local Ollama; own the
+whole thing.
 
-Hybrid search (pgvector semantic + Postgres keyword) with AI reranking over Apple's public docs and WWDC video transcripts. No third-party hosted service required — bring your own Postgres and your own embedding provider and you own the whole thing.
+Reverse-engineered from [BingoWon/apple-rag-mcp](https://github.com/BingoWon/apple-rag-mcp).
+No billing, no dashboard, no rate-limit shakedown.
 
-## Credit
-
-This project is a reverse-engineered, self-hosted re-implementation of [BingoWon/apple-rag-mcp](https://github.com/BingoWon/apple-rag-mcp).
-
-I reversed engineered his MCP server, cause why not. If you want to pay him for his hosted version, go use his at [apple-rag.com](https://apple-rag.com).
-
-What we changed:
-- Runtime: Bun + Hono (upstream runs Cloudflare Workers).
-- Storage: a single Postgres + pgvector for everything (upstream uses D1 alongside Postgres for users/billing).
-- Auth + rate limits: minimal, honest. No prompt-injection upsell messages.
-- Scope: MCP server + collector only. No billing, no web dashboard, no OAuth.
-
-## Quick start
-
-**Prerequisites:** Bun 1.3+, Postgres 16+ with `pgvector` extension, and an OpenAI-compatible embeddings endpoint. The default is a local [Ollama](https://ollama.com/) running `nomic-embed-text` (768-dim); a DeepInfra key is only required if you opt into the hosted Qwen reranker.
+## Run it
 
 ```bash
-bun install
-cp .env.example .env        # set DATABASE_URL; defaults assume local Ollama
-bun run migrate             # apply schema
-bun run dev                 # MCP server on :8787
+cp .env.example .env          # set DATABASE_URL; defaults assume local Ollama
+docker compose up --build
 ```
 
-One-off ingest of a single URL for testing:
+That's it. Server at `http://localhost:8787`, migrations run on boot,
+Postgres + pgvector included in the compose stack.
 
-```bash
-bun run scripts/seed-one.ts https://developer.apple.com/documentation/swiftui/navigationstack
-```
+Prefer bare metal? `bun install && bun run migrate && bun run dev`.
 
-Batch collection (round-robin across all known URLs):
+## Seed the index
 
-```bash
-bun run collect
-```
-
-Bootstrap a fresh database with framework documentation and WWDC video
-transcripts, then drain the queue:
+The repo ships no Apple content — you populate your own Postgres.
 
 ```bash
 bun run collect -- --docs --videos --loop
 ```
 
-- `--docs` seeds a baked list of framework roots (SwiftUI, UIKit, Foundation,
-  Swift, SwiftData, AVFoundation, Metal, and others). The collector's BFS
-  expands them via DocC cross-references.
-- `--videos` fetches the full WWDC video index from `developer.apple.com`.
-- `--loop` keeps going until the queue is idle for two passes in a row.
+- `--docs` seeds framework roots (SwiftUI, UIKit, Foundation, Swift,
+  SwiftData, AVFoundation, Metal, ...).
+- `--videos` fetches the WWDC video index.
+- `--loop` keeps running until the queue is idle.
 
-## MCP client config
+First run takes a while; the BFS fans out through DocC references.
+Subsequent runs incrementally refresh in round-robin order.
 
-```json
-{
-  "mcpServers": {
-    "apple-rag-docs-free": {
-      "url": "http://localhost:8787/mcp"
-    }
-  }
-}
+## Use it from Claude Code
+
+```bash
+claude mcp add --transport http --scope user \
+  apple-rag-docs-free http://127.0.0.1:8787/mcp
 ```
 
-Or expose it publicly behind a reverse proxy and use its URL.
+Then drop the skill and slash command into `~/.claude`:
 
-## Tools exposed
+```bash
+cp -R claude/commands/apple-docs.md     ~/.claude/commands/
+cp -R claude/skills/apple-docs          ~/.claude/skills/
+```
 
-### `search(query, result_count?)`
+You now get:
 
-- `query` — English technical search. API names, framework names, version numbers. Avoid temporal language.
-- `result_count` — 1..10, default 4.
+- `/apple-docs <query>` — explicit slash command for one-off lookups.
+- Automatic retrieval during Swift / iOS / macOS / visionOS coding. The
+  skill triggers when Claude sees a Swift file or an Apple framework
+  reference, silently pulls the relevant docs, and weaves them into the
+  answer with canonical `developer.apple.com` URLs.
 
-Returns merged document chunks with completeness markers:
-- `[*] Complete Document` — full doc.
-- `[*] Parts X, Y, Z merged (N total)` — multi-chunk title merge.
-- `[*] Part X of N` — single partial chunk.
+## Tools
 
-Plus a block of "Additional Related Documentation" URLs you can follow with `fetch`.
-
-### `fetch(url)`
-
-Returns title + normalized markdown for one canonical Apple doc / WWDC transcript URL.
+| Tool | What it does |
+|---|---|
+| `search(query, result_count?)` | Hybrid pgvector + tsvector search with title merging. Returns top-k plus a block of related URLs. |
+| `fetch(url)` | Full normalized markdown for one canonical doc or WWDC transcript URL. |
 
 ## Environment
 
-See `.env.example` for the full list.
+See `.env.example`. Only `DATABASE_URL` is strictly required; the rest
+have sane defaults.
 
-| Var | Required | Notes |
-|-----|----------|-------|
-| `DATABASE_URL` | yes | Postgres with pgvector; e.g. `postgres://user:pass@host:5432/db?sslmode=require` |
-| `EMBEDDING_BASE_URL` | no | OpenAI-compatible `/v1` endpoint. Default `http://127.0.0.1:11434/v1` (local Ollama). |
-| `EMBEDDING_MODEL` | no | Default `nomic-embed-text`. |
-| `EMBEDDING_DIM` | no | Must match the model output. Default `768`. Change only with a fresh migration — `halfvec(N)` is baked into the schema. |
-| `RERANKER_ENABLED` | no | Default `false`. When off, results come back in hybrid-merge order. |
-| `DEEPINFRA_API_KEY` | no | Only required when `RERANKER_ENABLED=true` and you use DeepInfra-hosted rerankers. |
-| `MCP_AUTH_TOKEN` | no | If set, `/mcp` requires `Authorization: Bearer <token>`. |
-| `PORT` | no | Default `8787`. |
-| `COLLECTOR_BATCH_SIZE` | no | URLs per collector pass. Default `10`. |
-| `COLLECTOR_ADMIN_TOKEN` | no | If set, required on `/admin/collector/tick`. |
-
-## Data model
-
-Two tables — see `migrations/001_init.sql`.
-
-- `pages(url, title, content, raw_json, collect_count, ...)` — canonical docs + videos, URL-keyed.
-- `chunks(url, title, content, embedding halfvec(768), chunk_index, total_chunks)` — pgvector HNSW index on embedding, GIN index on tsvector of title+content. The dimension is set to match `nomic-embed-text` by default; change `halfvec(N)` in the migration and set `EMBEDDING_DIM` before a fresh migrate to swap models.
-
-## Retrieval pipeline
-
-Given query `Q` and `k` results:
-
-1. Parallel: `4k` semantic candidates (pgvector `<=>` on halfvec) + `4k` keyword candidates (Postgres `plainto_tsquery('simple', …)`).
-2. Merge by id (semantic-first), group by title, concat sibling chunks in chunk-index order.
-3. When `RERANKER_ENABLED=true`, rerank with the configured primary model (then fallback, then merge order). Off by default.
-4. Top `k` → visible; next (cap 10) → "Additional Related Documentation".
-
-Default embedding is `nomic-embed-text` (768 dims) over a local Ollama. Any OpenAI-compatible `/v1/embeddings` endpoint works — point `EMBEDDING_BASE_URL` at it and set `EMBEDDING_MODEL` / `EMBEDDING_DIM` accordingly. Reranker is optional; wiring a DeepInfra-hosted Qwen reranker requires `DEEPINFRA_API_KEY` and `RERANKER_*` env.
-
-## Collection pipeline
-
-Cron-style batch job:
-
-1. Pull lowest `collect_count` Apple URLs from `pages` with `SELECT ... FOR UPDATE SKIP LOCKED` (multi-worker safe).
-2. For docs: GET `https://developer.apple.com/tutorials/data<path>.json` (or swift.org for `/docc`), validate `primaryContentSections`, convert to markdown.
-3. For videos: GET the `/videos/play/...` HTML, regex out `<section id="transcript-content">` and its `data-start` segments.
-4. Chunk each page (~2500 chars, split on header/paragraph/sentence boundaries), embed each chunk with `"{title}\n\n{content}"`, upsert.
-5. Discover new URLs from page references and enqueue with `collect_count = MIN(collect_count)` to round-robin.
-
-Run the collector on a cron every few minutes; each run processes `COLLECTOR_BATCH_SIZE` URLs.
+| Var | Default | Notes |
+|---|---|---|
+| `DATABASE_URL` | — | Postgres with pgvector. Required. |
+| `EMBEDDING_BASE_URL` | `http://127.0.0.1:11434/v1` | Any OpenAI-compatible `/v1` endpoint. |
+| `EMBEDDING_MODEL` | `nomic-embed-text` | 768-dim by default. |
+| `EMBEDDING_DIM` | `768` | Must match the model. Change only with a fresh migration. |
+| `RERANKER_ENABLED` | `false` | Off by default. Enable + set `DEEPINFRA_API_KEY` for hosted Qwen reranker. |
+| `MCP_AUTH_TOKEN` | — | If set, `/mcp` requires `Authorization: Bearer <token>`. |
+| `PORT` | `8787` | |
+| `COLLECTOR_BATCH_SIZE` | `10` | URLs per collector pass. |
 
 ## Deploy
 
-Runs anywhere Bun runs. Natural targets:
+`docker compose up` covers the happy path. For production: stand up
+Postgres with pgvector (Neon and Supabase both work), point
+`DATABASE_URL` at it, and run the container behind a TLS terminator.
+Set `MCP_AUTH_TOKEN` if `/mcp` is reachable from outside the host.
 
-- Vercel (Fluid Compute, Node.js runtime) — point `src/server.ts` at `@vercel/node` or expose it as `bun serve`.
-- Fly.io / Railway / Render — `bun run build && bun ./dist/server.js`.
-- Bare Docker — `docker build . && docker run ...` (Dockerfile in repo).
+## Legal
 
-You'll also need Postgres + pgvector; Neon and Supabase both work.
-
-### One-command self-host (Docker Compose)
-
-The repo ships a `Dockerfile` and `docker-compose.yml` that wire together
-Postgres-with-pgvector and the server. Migrations run automatically on first
-boot.
-
-```bash
-cp .env.example .env   # at minimum: set MCP_AUTH_TOKEN to a strong random value
-docker compose up --build
-# Server on http://localhost:8787, /mcp gated by MCP_AUTH_TOKEN.
-```
-
-The default `EMBEDDING_BASE_URL` points at `host.docker.internal:11434`, so a
-host-side Ollama works out of the box on macOS, Windows, and (via the
-`host-gateway` alias) Linux. To use a DeepInfra-style hosted embedding
-provider instead, set `EMBEDDING_BASE_URL` and `DEEPINFRA_API_KEY` in `.env`.
-
-## Legal / operational notes
-
-- [!] The collector fetches from `developer.apple.com` at a polite-but-nontrivial rate. Respect `robots.txt`, add delays, and don't hammer them. If you deploy this publicly, expect Apple may block the UA we spoof; that's on you.
-- [!] The docs we index are Apple's copyright. This project ships zero Apple content — you populate your own Postgres. Don't redistribute your dump.
-- [!] WWDC transcripts are Apple's too. Same rule.
+- [!] The collector fetches from `developer.apple.com` at a
+  polite-but-nontrivial rate. Respect `robots.txt`, add delays, and
+  don't hammer them.
+- [!] Apple documentation and WWDC transcripts are Apple's copyright.
+  This project ships zero Apple content — you populate your own
+  Postgres. Don't redistribute your dump.
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Original upstream is also MIT.
+MIT. See [LICENSE](LICENSE).
