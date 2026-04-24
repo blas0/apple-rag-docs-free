@@ -1,0 +1,30 @@
+# Version control
+.git
+.gitignore
+
+# Local state / workspaces
+.env
+.env.*
+!.env.example
+node_modules
+dist
+.claude
+.mcp_data
+.DS_Store
+
+# Research / upstream captures — never want these in the image
+observed
+upstream
+
+# CI + editor config
+.github
+.vscode
+.idea
+
+# Docs that aren't runtime-relevant
+*.md
+!README.md
+
+# Tests — runtime doesn't need them
+test
+**/*.test.ts
