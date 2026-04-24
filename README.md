@@ -1,5 +1,7 @@
 # apple-rag-docs-free
 
+[![CI](https://github.com/blas0/apple-rag-docs-free/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/blas0/apple-rag-docs-free/actions/workflows/ci.yml)
+
 **A free, self-hostable MCP server for Apple developer documentation and WWDC transcripts.**
 
 Hybrid search (pgvector semantic + Postgres keyword) with AI reranking over Apple's public docs and WWDC video transcripts. No third-party hosted service required — bring your own Postgres and your own embedding provider and you own the whole thing.
