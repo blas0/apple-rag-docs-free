@@ -1,0 +1,66 @@
+# One-command self-host: Postgres 16 with pgvector + the MCP server.
+#
+#   cp .env.example .env         # edit values (at minimum set a strong MCP_AUTH_TOKEN)
+#   docker compose up --build
+#
+# The server runs migrations on startup, so the compose up is idempotent.
+# Postgres data persists in the named `pgdata` volume across restarts.
+
+name: apple-rag-docs-free
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-apple_rag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-apple_rag}
+      POSTGRES_DB: ${POSTGRES_DB:-apple_rag}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-apple_rag} -d ${POSTGRES_DB:-apple_rag}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Inside the compose network the DB host is `db`; override via .env if needed.
+      DATABASE_URL: ${DATABASE_URL:-postgres://apple_rag:apple_rag@db:5432/apple_rag}
+      PORT: "8787"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
+      COLLECTOR_BATCH_SIZE: ${COLLECTOR_BATCH_SIZE:-10}
+      COLLECTOR_ADMIN_TOKEN: ${COLLECTOR_ADMIN_TOKEN:-}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-http://host.docker.internal:11434/v1}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      EMBEDDING_DIM: ${EMBEDDING_DIM:-768}
+      RERANKER_ENABLED: ${RERANKER_ENABLED:-false}
+      RERANKER_BASE_URL: ${RERANKER_BASE_URL:-}
+      RERANKER_MODEL_PRIMARY: ${RERANKER_MODEL_PRIMARY:-}
+      RERANKER_MODEL_FALLBACK: ${RERANKER_MODEL_FALLBACK:-}
+      DEEPINFRA_API_KEY: ${DEEPINFRA_API_KEY:-}
+    ports:
+      - "${PORT:-8787}:8787"
+    extra_hosts:
+      # Lets EMBEDDING_BASE_URL default point at a host-side Ollama on Linux too.
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "bun", "-e", "await fetch('http://127.0.0.1:8787/health').then(r => { if (!r.ok) process.exit(1) })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  pgdata:

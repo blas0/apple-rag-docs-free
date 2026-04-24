@@ -133,9 +133,26 @@ Runs anywhere Bun runs. Natural targets:
 
 - Vercel (Fluid Compute, Node.js runtime) — point `src/server.ts` at `@vercel/node` or expose it as `bun serve`.
 - Fly.io / Railway / Render — `bun run build && bun ./dist/server.js`.
-- Bare Docker — `FROM oven/bun:1`.
+- Bare Docker — `docker build . && docker run ...` (Dockerfile in repo).
 
 You'll also need Postgres + pgvector; Neon and Supabase both work.
+
+### One-command self-host (Docker Compose)
+
+The repo ships a `Dockerfile` and `docker-compose.yml` that wire together
+Postgres-with-pgvector and the server. Migrations run automatically on first
+boot.
+
+```bash
+cp .env.example .env   # at minimum: set MCP_AUTH_TOKEN to a strong random value
+docker compose up --build
+# Server on http://localhost:8787, /mcp gated by MCP_AUTH_TOKEN.
+```
+
+The default `EMBEDDING_BASE_URL` points at `host.docker.internal:11434`, so a
+host-side Ollama works out of the box on macOS, Windows, and (via the
+`host-gateway` alias) Linux. To use a DeepInfra-style hosted embedding
+provider instead, set `EMBEDDING_BASE_URL` and `DEEPINFRA_API_KEY` in `.env`.
 
 ## Legal / operational notes
 
