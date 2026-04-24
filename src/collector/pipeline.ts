@@ -14,7 +14,13 @@
 import type { Sql } from "postgres";
 import { logger } from "../logger.ts";
 import type { EmbeddingService } from "../retrieval/embedding.ts";
-import { discoverVideoUrls, fetchDocumentJson, fetchVideo, isVideoUrl } from "./appleClient.ts";
+import {
+	discoverDocUrls,
+	discoverVideoUrls,
+	fetchDocumentJson,
+	fetchVideo,
+	isVideoUrl,
+} from "./appleClient.ts";
 import { chunkText } from "./chunker.ts";
 import { processDocument } from "./contentProcessor.ts";
 import {
@@ -46,6 +52,13 @@ export async function discoverVideos(deps: CollectorDeps): Promise<number> {
 	const urls = await discoverVideoUrls();
 	const added = await batchInsertUrls(deps.sql, urls);
 	if (added > 0) logger.info(`[collector] discovered ${added} new video URL(s)`);
+	return added;
+}
+
+export async function discoverDocs(deps: CollectorDeps): Promise<number> {
+	const urls = discoverDocUrls();
+	const added = await batchInsertUrls(deps.sql, urls);
+	if (added > 0) logger.info(`[collector] seeded ${added} framework root URL(s)`);
 	return added;
 }
 

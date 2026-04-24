@@ -2,17 +2,18 @@
  * Collector runner. Pulls batches from pages, fetches/chunks/embeds/writes.
  *
  * Usage:
- *   bun run collect                  # one pass of size COLLECTOR_BATCH_SIZE
- *   bun run collect -- --loop        # repeat until a batch does nothing
- *   bun run collect -- --videos      # discover video URLs once, then exit
- *   bun run collect -- --loop --videos  # discover videos, then loop
+ *   bun run collect                     # one pass of size COLLECTOR_BATCH_SIZE
+ *   bun run collect -- --loop           # repeat until a batch does nothing
+ *   bun run collect -- --videos         # discover video URLs once, then exit
+ *   bun run collect -- --docs           # seed framework root URLs once, then exit
+ *   bun run collect -- --docs --videos --loop  # seed both sources, then drain
  *
  * The loop terminates when a batch returns 0 processed records (queue is
  * empty at the current minimum collect_count) and the prior pass enqueued
  * nothing. This keeps repeated CLI runs fast as the corpus gets close to full.
  */
 
-import { discoverVideos, runBatch } from "../src/collector/pipeline.ts";
+import { discoverDocs, discoverVideos, runBatch } from "../src/collector/pipeline.ts";
 import { loadConfig } from "../src/config.ts";
 import { closeSql, getSql } from "../src/db/client.ts";
 import { logger, setLogLevel } from "../src/logger.ts";
@@ -22,6 +23,7 @@ async function main(): Promise<void> {
 	const args = new Set(process.argv.slice(2));
 	const loop = args.has("--loop");
 	const seedVideos = args.has("--videos");
+	const seedDocs = args.has("--docs");
 
 	const config = loadConfig();
 	setLogLevel(config.logLevel);
@@ -33,6 +35,11 @@ async function main(): Promise<void> {
 	);
 
 	try {
+		if (seedDocs) {
+			const added = await discoverDocs({ sql, embedding });
+			logger.info(`[collect] doc root seed added ${added} URL(s)`);
+		}
+
 		if (seedVideos) {
 			const added = await discoverVideos({ sql, embedding });
 			logger.info(`[collect] video discovery added ${added} URL(s)`);
