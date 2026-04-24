@@ -1,6 +1,13 @@
 /**
- * Embeddings via DeepInfra (OpenAI-compatible). Default model: Qwen3-Embedding-4B.
- * L2-normalizes client-side so pgvector cosine distance behaves consistently.
+ * Embeddings over any OpenAI-compatible endpoint. Default: local Ollama
+ * (http://127.0.0.1:11434/v1) with nomic-embed-text.
+ *
+ * EMBEDDING_BASE_URL should already include the provider's version prefix
+ * (e.g. "/v1" for Ollama, "/v1/openai" for DeepInfra); this class appends
+ * "/embeddings" onto it.
+ *
+ * L2-normalizes client-side so pgvector cosine distance behaves consistently
+ * across providers that do and don't pre-normalize.
  */
 
 import { logger } from "../logger.ts";
@@ -21,7 +28,7 @@ export class EmbeddingService extends DeepInfraService<
 	EmbeddingResponse,
 	number[][]
 > {
-	protected readonly endpoint = "/v1/openai/embeddings";
+	protected readonly endpoint = "/embeddings";
 
 	constructor(
 		opts: { baseUrl: string; apiKey: string },

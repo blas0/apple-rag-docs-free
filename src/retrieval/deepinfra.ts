@@ -17,9 +17,7 @@ export interface DeepInfraOptions {
 export abstract class DeepInfraService<TIn, TRes, TOut> {
 	protected abstract readonly endpoint: string;
 
-	constructor(private readonly opts: DeepInfraOptions) {
-		if (!opts.apiKey) throw new Error("DEEPINFRA_API_KEY is required");
-	}
+	constructor(private readonly opts: DeepInfraOptions) {}
 
 	protected async call(input: TIn, label: string): Promise<TOut> {
 		const payload = this.buildPayload(input);
@@ -42,13 +40,15 @@ export abstract class DeepInfraService<TIn, TRes, TOut> {
 	}
 
 	protected async singleRequest(endpoint: string, payload: unknown): Promise<TRes> {
+		const headers: Record<string, string> = {
+			"Content-Type": "application/json",
+			"User-Agent": USER_AGENT,
+		};
+		if (this.opts.apiKey) headers.Authorization = `Bearer ${this.opts.apiKey}`;
+
 		const res = await fetch(`${this.opts.baseUrl}${endpoint}`, {
 			method: "POST",
-			headers: {
-				Authorization: `Bearer ${this.opts.apiKey}`,
-				"Content-Type": "application/json",
-				"User-Agent": USER_AGENT,
-			},
+			headers,
 			body: JSON.stringify(payload),
 			signal: AbortSignal.timeout(TIMEOUT_MS),
 		});

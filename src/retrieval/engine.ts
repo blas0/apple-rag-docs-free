@@ -37,7 +37,7 @@ interface ProcessedCandidate extends MergedResult {
 export interface SearchEngineDeps {
 	readonly sql: Sql;
 	readonly embedding: EmbeddingService;
-	readonly reranker: RerankerService;
+	readonly reranker: RerankerService | null;
 }
 
 export async function hybridSearch(
@@ -156,7 +156,7 @@ function mergeByTitle(hits: readonly SearchHit[]): ProcessedCandidate[] {
 }
 
 async function tryRerank(
-	reranker: RerankerService,
+	reranker: RerankerService | null,
 	query: string,
 	processed: readonly ProcessedCandidate[],
 	k: number,
@@ -164,6 +164,10 @@ async function tryRerank(
 	if (processed.length === 0) return [];
 
 	const target = Math.min(k, processed.length);
+
+	if (!reranker) {
+		return processed.slice(0, target).map(toMergedResult);
+	}
 
 	try {
 		const ranked = await reranker.rerank(
