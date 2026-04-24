@@ -18,11 +18,11 @@ What we changed:
 
 ## Quick start
 
-**Prerequisites:** Bun 1.1+, Postgres 16+ with `pgvector` extension, a DeepInfra API key (or any compatible embedding/reranker provider).
+**Prerequisites:** Bun 1.3+, Postgres 16+ with `pgvector` extension, and an OpenAI-compatible embeddings endpoint. The default is a local [Ollama](https://ollama.com/) running `nomic-embed-text` (768-dim); a DeepInfra key is only required if you opt into the hosted Qwen reranker.
 
 ```bash
 bun install
-cp .env.example .env        # fill in DATABASE_URL and DEEPINFRA_API_KEY
+cp .env.example .env        # set DATABASE_URL; defaults assume local Ollama
 bun run migrate             # apply schema
 bun run dev                 # MCP server on :8787
 ```
@@ -78,8 +78,14 @@ See `.env.example` for the full list.
 | Var | Required | Notes |
 |-----|----------|-------|
 | `DATABASE_URL` | yes | Postgres with pgvector; e.g. `postgres://user:pass@host:5432/db?sslmode=require` |
-| `DEEPINFRA_API_KEY` | yes | For embeddings + reranker. Swap providers by editing `src/retrieval/{embedding,reranker}.ts`. |
+| `EMBEDDING_BASE_URL` | no | OpenAI-compatible `/v1` endpoint. Default `http://127.0.0.1:11434/v1` (local Ollama). |
+| `EMBEDDING_MODEL` | no | Default `nomic-embed-text`. |
+| `EMBEDDING_DIM` | no | Must match the model output. Default `768`. Change only with a fresh migration — `halfvec(N)` is baked into the schema. |
+| `RERANKER_ENABLED` | no | Default `false`. When off, results come back in hybrid-merge order. |
+| `DEEPINFRA_API_KEY` | no | Only required when `RERANKER_ENABLED=true` and you use DeepInfra-hosted rerankers. |
+| `MCP_AUTH_TOKEN` | no | If set, `/mcp` requires `Authorization: Bearer <token>`. |
 | `PORT` | no | Default `8787`. |
+| `COLLECTOR_BATCH_SIZE` | no | URLs per collector pass. Default `10`. |
 | `COLLECTOR_ADMIN_TOKEN` | no | If set, required on `/admin/collector/tick`. |
 
 ## Data model
@@ -87,7 +93,7 @@ See `.env.example` for the full list.
 Two tables — see `migrations/001_init.sql`.
 
 - `pages(url, title, content, raw_json, collect_count, ...)` — canonical docs + videos, URL-keyed.
-- `chunks(url, title, content, embedding halfvec(2560), chunk_index, total_chunks)` — pgvector HNSW index on embedding, GIN index on tsvector of title+content.
+- `chunks(url, title, content, embedding halfvec(768), chunk_index, total_chunks)` — pgvector HNSW index on embedding, GIN index on tsvector of title+content. The dimension is set to match `nomic-embed-text` by default; change `halfvec(N)` in the migration and set `EMBEDDING_DIM` before a fresh migrate to swap models.
 
 ## Retrieval pipeline
 
@@ -95,10 +101,10 @@ Given query `Q` and `k` results:
 
 1. Parallel: `4k` semantic candidates (pgvector `<=>` on halfvec) + `4k` keyword candidates (Postgres `plainto_tsquery('simple', …)`).
 2. Merge by id (semantic-first), group by title, concat sibling chunks in chunk-index order.
-3. Rerank with Qwen3-Reranker-8B via DeepInfra (falls back to 4B, then to merge order).
+3. When `RERANKER_ENABLED=true`, rerank with the configured primary model (then fallback, then merge order). Off by default.
 4. Top `k` → visible; next (cap 10) → "Additional Related Documentation".
 
-Embedding model is `Qwen/Qwen3-Embedding-4B` (2560 dims, L2-normalized client-side). Swap either by editing the two retrieval modules — the engine doesn't know or care.
+Default embedding is `nomic-embed-text` (768 dims) over a local Ollama. Any OpenAI-compatible `/v1/embeddings` endpoint works — point `EMBEDDING_BASE_URL` at it and set `EMBEDDING_MODEL` / `EMBEDDING_DIM` accordingly. Reranker is optional; wiring a DeepInfra-hosted Qwen reranker requires `DEEPINFRA_API_KEY` and `RERANKER_*` env.
 
 ## Collection pipeline
 
