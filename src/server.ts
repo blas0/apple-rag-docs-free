@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { loadConfig } from "./config.ts";
 import { logger, setLogLevel } from "./logger.ts";
+import { requireBearerToken } from "./mcp/auth.ts";
 import { JSON_HEADERS, MCP_ERROR_CODES, SERVER_MANIFEST, SERVER_VERSION } from "./mcp/constants.ts";
 import { handleJsonRpc } from "./mcp/protocol.ts";
 import { buildServices } from "./services.ts";
@@ -54,6 +55,8 @@ app.get("/health", (c) =>
 app.get("/manifest", (c) =>
 	c.json(SERVER_MANIFEST, 200, { "Cache-Control": "public, max-age=3600" }),
 );
+
+app.use("/mcp", requireBearerToken(config.mcpAuthToken));
 
 app.post("/mcp", async (c) => {
 	const contentType = c.req.header("content-type");
