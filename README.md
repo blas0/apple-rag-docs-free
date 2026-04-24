@@ -39,6 +39,19 @@ Batch collection (round-robin across all known URLs):
 bun run collect
 ```
 
+Bootstrap a fresh database with framework documentation and WWDC video
+transcripts, then drain the queue:
+
+```bash
+bun run collect -- --docs --videos --loop
+```
+
+- `--docs` seeds a baked list of framework roots (SwiftUI, UIKit, Foundation,
+  Swift, SwiftData, AVFoundation, Metal, and others). The collector's BFS
+  expands them via DocC cross-references.
+- `--videos` fetches the full WWDC video index from `developer.apple.com`.
+- `--loop` keeps going until the queue is idle for two passes in a row.
+
 ## MCP client config
 
 ```json

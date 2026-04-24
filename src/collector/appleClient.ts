@@ -23,6 +23,59 @@ const ALL_VIDEOS_URL = "https://developer.apple.com/videos/all-videos/";
 const VIDEO_URL_PREFIX = "https://developer.apple.com/videos/play/";
 const PERMANENT_ERROR_CODES = new Set([403, 404, 410]);
 
+// Baked list of top-level framework roots. Apple does not publish a stable
+// documentation index, so the collector needs explicit seeds to spread from.
+// Every root is a documentation top-level that fans out to dozens-to-thousands
+// of descendant pages, which the BFS in pipeline.ts enqueues via DocC
+// references. Missing roots just mean slower coverage, not broken crawl — the
+// BFS will reach them transitively as long as the seeded trees link to them.
+const FRAMEWORK_ROOT_PATHS: readonly string[] = [
+	"/documentation/swiftui",
+	"/documentation/uikit",
+	"/documentation/appkit",
+	"/documentation/foundation",
+	"/documentation/swift",
+	"/documentation/concurrency",
+	"/documentation/observation",
+	"/documentation/combine",
+	"/documentation/swiftdata",
+	"/documentation/coredata",
+	"/documentation/cloudkit",
+	"/documentation/avfoundation",
+	"/documentation/metal",
+	"/documentation/arkit",
+	"/documentation/realitykit",
+	"/documentation/vision",
+	"/documentation/widgetkit",
+	"/documentation/xcode",
+	"/documentation/testing",
+	"/documentation/accelerate",
+	"/documentation/networkextension",
+	"/documentation/security",
+	"/documentation/storekit",
+	"/documentation/healthkit",
+	"/documentation/mapkit",
+	"/documentation/photokit",
+	"/documentation/createml",
+	"/documentation/coreml",
+	"/documentation/naturallanguage",
+	"/documentation/speech",
+	"/documentation/messages",
+	"/documentation/familycontrols",
+	"/documentation/appintents",
+	"/documentation/charts",
+	"/documentation/tipkit",
+	"/documentation/coreanimation",
+	"/documentation/coregraphics",
+	"/documentation/coreimage",
+	"/documentation/corelocation",
+	"/documentation/corebluetooth",
+	"/documentation/contacts",
+	"/documentation/eventkit",
+	"/documentation/background",
+	"/documentation/useractivity",
+];
+
 export interface DocumentContent {
 	readonly title: string | null;
 	readonly content: string;
@@ -46,6 +99,10 @@ export interface FetchResult<T> {
 
 export function isVideoUrl(url: string): boolean {
 	return url.startsWith(VIDEO_URL_PREFIX);
+}
+
+export function discoverDocUrls(): string[] {
+	return FRAMEWORK_ROOT_PATHS.map((p) => `https://developer.apple.com${p}`);
 }
 
 export async function discoverVideoUrls(): Promise<string[]> {
